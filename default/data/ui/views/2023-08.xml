@@ -1,0 +1,146 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 8: Haunted Wasteland</label>
+  <search>
+    <query>
+      <![CDATA[
+      | makeresults
+      | eval lookup=$lookup|s$
+      | eval lookup1=if(lookup == "input", "input", "example"),
+             lookup2=if(lookup == "input", "input", "example2")
+      ]]>
+    </query>
+    <done>
+      <set token="lookup1">$result.lookup1$</set>
+      <set token="lookup2">$result.lookup2$</set>
+    </done>
+  </search>
+  <search id="part1">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-08_$lookup1$.csv where map != ""
+      | rex field=map "^(?<ops>\w+)$"
+      | eval map=if(isnull(ops), map, null())
+      | appendpipe [
+          | where isnotnull(map)
+          | rex field=map "^(?<loc>\w+) = \((?<L>\w+), (?<R>\w+)\)"
+          | fields + loc L R
+          | untable loc op next_loc
+          | outputlookup 2023-08_$lookup1$-map.csv
+          | where false()
+      ]
+      | where isnull(map)
+
+      | eval counter=0, loc="AAA"
+      | fields + counter loc ops
+      
+      | while "loc != \"ZZZ\""
+      
+      | eval op=substr(ops, (counter % len(ops)) + 1, 1),
+             counter=counter + 1
+      | lookup 2023-08_$lookup1$-map.csv loc op OUTPUT next_loc
+      | rename next_loc AS loc
+      
+      | endwhile
+      ]]>
+    </query>
+  </search>
+  <search id="part2">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-08_$lookup2$.csv where map != ""
+      | rex field=map "^(?<ops>\w+)$"
+      | eval map=if(isnull(ops), map, null())
+      | appendpipe [
+          | where isnotnull(map)
+          | rex field=map "^(?<loc>\w+) = \((?<L>\w+), (?<R>\w+)\)"
+          | fields + loc L R
+          | untable loc op next_loc
+          | outputlookup 2023-08_$lookup2$-map.csv
+          | where false()
+      ]
+      | rex field=map "^(?<loc>\w+) ="
+      | eventstats values(ops) as ops values(eval(if(match(loc, "Z$"), loc, null()))) as ends
+      | where isnotnull(loc) AND match(loc, "A$")
+      | eval counter=0
+      | fields + loc ops counter ends
+      
+      | while "not loc in ends"
+      
+      | eval op=substr(ops, (counter % len(ops)) + 1, 1),
+             counter=counter + 1
+      | lookup 2023-08_$lookup2$-map.csv loc op OUTPUT next_loc
+      | rename next_loc AS loc
+      
+      | endwhile
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Starting at AAA, follow the left/right instructions. How many steps are required to reach ZZZ?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table counter
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table counter loc
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Simultaneously start on every node that ends with A. How many steps does it take before you're only on nodes that end with Z?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats values(counter) as counter
+          | lcm counter
+          | fields + result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table counter loc
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

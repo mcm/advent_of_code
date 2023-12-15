@@ -1,0 +1,129 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 11: Cosmic Expansion</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-11_$lookup$.csv
+      | streamstats count
+      | eval no_galaxy_row=if(len(replace(galaxy, "\.", "")) == 0, count, null())
+      | streamstats current=f count(eval(isnotnull(no_galaxy_row))) as no_galaxy_before
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | eval count=count + no_galaxy_before
+      | fields - no_galaxy_*
+      | eval galaxy=split(galaxy, "")
+      | mvexpand galaxy
+      | rename count AS y
+      | streamstats global=f count AS x by y
+      | eventstats count(eval(galaxy == "#")) as col by x
+      | sort 0 + x
+      | streamstats dc(eval(if(col == 0, x, null()))) as no_galaxy_before
+      | eval no_galaxy_before=if(col == 0, no_galaxy_before - 1, no_galaxy_before)
+      | eval x=x + no_galaxy_before, p=x.",".y
+      | search galaxy="#"
+      | stats values(p) as p1
+      | combinations p1
+      | fields - p1
+      | mvexpand result
+      | rex field=result "(?<x1>\d+),(?<y1>\d+);(?<x2>\d+),(?<y2>\d+)"
+      | eval dist=abs(x1 - x2) + abs(y1 - y2)
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | eval count=count + (999999 * no_galaxy_before)
+      | fields - no_galaxy_*
+      | eval galaxy=split(galaxy, "")
+      | mvexpand galaxy
+      | rename count AS y
+      | streamstats global=f count AS x by y
+      | eventstats count(eval(galaxy == "#")) as col by x
+      | sort 0 + x
+      | streamstats dc(eval(if(col == 0, x, null()))) as no_galaxy_before
+      | eval no_galaxy_before=if(col == 0, no_galaxy_before - 1, no_galaxy_before)
+      | eval x=x + (999999 * no_galaxy_before), p=x.",".y
+      | search galaxy="#"
+      | stats values(p) as p1
+      | combinations p1
+      | fields - p1
+      | mvexpand result
+      | rex field=result "(?<x1>\d+),(?<y1>\d+);(?<x2>\d+),(?<y2>\d+)"
+      | eval dist=abs(x1 - x2) + abs(y1 - y2)
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Expand the universe, then find the length of the shortest path between every pair of galaxies. What is the sum of these lengths?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(dist)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | eval result=replace(result, ";", " -> ")
+          | table result dist
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Starting with the same initial image, expand the universe according to these new rules, then find the length of the shortest path between every pair of galaxies. What is the sum of these lengths?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(dist)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | eval result=replace(result, ";", " -> ")
+          | table result dist
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

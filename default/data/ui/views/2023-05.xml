@@ -1,0 +1,130 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 5: If You Give A Seed A Fertilizer</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-05_$lookup$.csv 
+      | streamstats last(eval(if(match(line, "\w+-to-\w+ map:"), replace(line, " map:", ""), null()))) as grp
+      | where isnotnull(line)
+      | rex field=line "^(?<section>\S+) map:" 
+      | eventstats values(section) as section by grp 
+      | rex field=section "^(?<source>\w+)-to-(?<dest>\w+)" 
+      | rex field=line "^(?<dest_start>\d+) (?<source_start>\d+) (?<range>\d+)"
+      | eval {source}=source_start."-".(source_start + range - 1),
+             {dest}=dest_start."-".(dest_start + range - 1)
+             
+      | fields - dest dest_start grp range source source_start _mkv_child
+      | appendpipe [where section=="fertilizer-to-water" AND isnotnull(fertilizer) AND isnotnull(water) | fields + fertilizer water | outputlookup 2023-05_$lookup$_fertilizer-to-water.csv | where false()]
+      | appendpipe [where section=="humidity-to-location" AND isnotnull(humidity) AND isnotnull(location) | fields + humidity location | outputlookup 2023-05_$lookup$_humidity-to-location.csv | where false()]
+      | appendpipe [where section=="light-to-temperature" AND isnotnull(light) AND isnotnull(temperature) | fields + light temperature | outputlookup 2023-05_$lookup$_light-to-temperature.csv | where false()]
+      | appendpipe [where section=="seed-to-soil" AND isnotnull(seed) AND isnotnull(soil) | fields + seed soil | outputlookup 2023-05_$lookup$_seed-to-soil.csv | where false()]
+      | appendpipe [where section=="soil-to-fertilizer" AND isnotnull(soil) AND isnotnull(fertilizer) | fields + soil fertilizer | outputlookup 2023-05_$lookup$_soil-to-fertilizer.csv | where false()]
+      | appendpipe [where section=="temperature-to-humidity" AND isnotnull(temperature) AND isnotnull(humidity) | fields + temperature humidity | outputlookup 2023-05_$lookup$_temperature-to-humidity.csv | where false()]
+      | appendpipe [where section=="water-to-light" AND isnotnull(water) AND isnotnull(light) | fields + water light | outputlookup 2023-05_$lookup$_water-to-light.csv | where false()]
+      
+      | where isnull(section)
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | rex field=line max_match=0 "(?<seed>\d+)"
+      | fields + seed
+      | mvexpand seed
+      | rangelookup lookup=2023-05_$lookup$_seed-to-soil.csv field=seed output_field=soil | eval soil=coalesce(soil, seed)
+      | rangelookup lookup=2023-05_$lookup$_soil-to-fertilizer.csv field=soil output_field=fertilizer | eval fertilizer=coalesce(fertilizer, soil)
+      | rangelookup lookup=2023-05_$lookup$_fertilizer-to-water.csv field=fertilizer output_field=water | eval water=coalesce(water, fertilizer)
+      | rangelookup lookup=2023-05_$lookup$_water-to-light.csv field=water output_field=light | eval light=coalesce(light, water)
+      | rangelookup lookup=2023-05_$lookup$_light-to-temperature.csv field=light output_field=temperature | eval temperature=coalesce(temperature, light)
+      | rangelookup lookup=2023-05_$lookup$_temperature-to-humidity.csv field=temperature output_field=humidity | eval humidity=coalesce(humidity, temperature)
+      | rangelookup lookup=2023-05_$lookup$_humidity-to-location.csv field=humidity output_field=location | eval location=coalesce(location, humidity)
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | rex field=line max_match=0 "(?<seed>\d+ \d+)"
+      | mvexpand seed
+      | rex field=seed "^(?<start>\d+) (?<length>\d+)$"
+      | eval seed=start."-".(start + length - 1)
+      | fields + seed
+      | rangelookup lookup=2023-05_example_seed-to-soil.csv field=seed output_field=soil | eval soil=coalesce(soil, seed)
+      | rangelookup lookup=2023-05_example_soil-to-fertilizer.csv field=soil output_field=fertilizer | eval fertilizer=coalesce(fertilizer, soil)
+      | rangelookup lookup=2023-05_example_fertilizer-to-water.csv field=fertilizer output_field=water | eval water=coalesce(water, fertilizer)
+      | rangelookup lookup=2023-05_example_water-to-light.csv field=water output_field=light | eval light=coalesce(light, water)
+      | rangelookup lookup=2023-05_example_light-to-temperature.csv field=light output_field=temperature | eval temperature=coalesce(temperature, light)
+      | rangelookup lookup=2023-05_example_temperature-to-humidity.csv field=temperature output_field=humidity | eval humidity=coalesce(humidity, temperature)
+      | rangelookup lookup=2023-05_example_humidity-to-location.csv field=humidity output_field=location | eval location=coalesce(location, humidity)
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>What is the lowest location number that corresponds to any of the initial seed numbers?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats min(location)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table seed soil fertilizer water light temperature humidity location
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Consider all of the initial seed numbers listed in the ranges on the first line of the almanac. What is the lowest location number that corresponds to any of the initial seed numbers?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | eval location=replace(location, "-\d+", "")
+          | stats min(location)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table seed soil fertilizer water light temperature humidity location
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

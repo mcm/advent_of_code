@@ -1,0 +1,152 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 7: Camel Cards</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-07_$lookup$.csv
+      | rex field=hand "^(?<hand1>\S+) (?<bid>\d+)"
+      | eval hand=split(hand1, "")
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | foreach `seq(2,10)` T J Q K A [
+          | eval count_<<FIELD>>=coalesce(mvcount(mvfilter(hand=="<<FIELD>>")), 0),
+                 vals=if(count_<<FIELD>> > 0, mvappend(vals, count_<<FIELD>>), vals)
+      ]
+      | eval strength=case(
+          max(vals) == 5, 7,
+          max(vals) == 4, 6,
+          max(vals) == 3 AND mvcount(vals) == 2, 5,
+          max(vals) == 3, 4,
+          max(vals) == 2 AND mvcount(vals) == 3, 3,
+          max(vals) == 2, 2,
+          true(), 1
+      )
+      | fields - count_* vals
+      | eval vals=0
+      | foreach `seq(0, 5)` [eval card_<<FIELD>>=mvindex(hand, <<FIELD>>) | replace T with 10, J with 11, Q with 12, K with 13, A with 14 in card_<<FIELD>> | eval vals=mvappend(vals, card_<<FIELD>>)]
+      | eval hand=mvjoin(hand, "")
+      | foreach `seq(1, 6)` [eval strength<<FIELD>>=sum(mvindex(vals, 0, <<FIELD>>))]
+      
+      | sort 0 + strength strength1 strength2 strength3 strength4 strength5
+      | streamstats count as rank
+      | eval winnings=rank * bid 
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | foreach `seq(2,10)` T J Q K A [
+          | eval count_<<FIELD>>=coalesce(mvcount(mvfilter(hand=="<<FIELD>>")), 0),
+                 cards=if(count_<<FIELD>> > 0, mvappend(cards, "<<FIELD>>"), cards)
+          | fields - count_<<FIELD>>
+      ]
+      | eval cards=if(isnull(mvfilter(cards == "J")), null(), cards)
+      | mvexpand cards
+      | eval hand=if(hand1 == "JJJJJ", split("AAAAA", ""), mvmap(hand, if(hand=="J", cards, hand)))
+      | foreach `seq(2,10)` T J Q K A [
+          | eval count_<<FIELD>>=coalesce(mvcount(mvfilter(hand=="<<FIELD>>")), 0),
+                 vals=if(count_<<FIELD>> > 0, mvappend(vals, count_<<FIELD>>), vals)
+      ]
+      | eval strength=case(
+          max(vals) == 5, 7,
+          max(vals) == 4, 6, 
+          max(vals) == 3 AND mvcount(vals) == 2, 5,
+          max(vals) == 3, 4,
+          max(vals) == 2 AND mvcount(vals) == 3, 3,
+          max(vals) == 2, 2, 
+          true(), 1 
+      )
+      | eventstats max(strength) as max_strength by hand1
+      | streamstats count as id by hand1
+      | eventstats min(eval(if(strength==max_strength, id, null()))) as winning_hand_id by hand1
+      | where winning_hand_id == id
+      | fields - count_* vals id max_strength winning_hand_id
+      | eval vals=0
+      | eval hand=split(hand1, "")
+      | foreach `seq(0, 5)` [
+          | eval card_<<FIELD>>=mvindex(hand, <<FIELD>>)
+          | replace T with 10, J with 1, Q with 12, K with 13, A with 14 in card_<<FIELD>>
+          | eval vals=mvappend(vals, card_<<FIELD>>)
+      ]
+      | rename hand1 as hand
+      | foreach `seq(1, 6)` [eval strength<<FIELD>>=sum(mvindex(vals, 0, <<FIELD>>))]
+      
+      | sort 0 + strength strength1 strength2 strength3 strength4 strength5
+      | streamstats count as rank
+      | eval winnings=rank * bid
+      | rename cards AS joker
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Find the rank of every hand in your set. What are the total winnings?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(winnings)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table rank hand bid winnings
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Using the new joker rule, find the rank of every hand in your set. What are the new total winnings?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(winnings)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table rank hand joker bid winnings
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

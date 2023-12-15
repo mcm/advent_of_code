@@ -1,0 +1,115 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 6: Wait For It</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-06_$lookup$.csv
+      | rex field=race max_match=0 "(?<races>\d+)"
+      | rex field=race "^(?<field>\w+)"
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | mvexpand races
+      | streamstats count as race by field
+      | eval field=lower(field),
+             {field}=races
+      | fields - races field
+      | stats values(*) as * by race
+      | eval x1=(time - sqrt(pow(time, 2) - 4 * distance)) / 2,
+             x2=(time + sqrt(pow(time, 2) - 4 * distance)) / 2
+      | foreach x1 x2 [eval <<FIELD>>=case(<<FIELD>> < 0, <<FIELD>> + time, <<FIELD>> > time, <<FIELD>> - time, true(), <<FIELD>>)]
+      | eval min=floor(min(x1, x2)) + 1,
+             max=ceil(max(x1, x2)) - 1,
+             result=max - min + 1
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | eval races=mvjoin(races, "")
+      | eval field=lower(field),
+             {field}=races
+      | fields - race races field
+      | stats values(*) as *
+      | eval x1=(time - sqrt(pow(time, 2) - 4 * distance)) / 2,
+             x2=(time + sqrt(pow(time, 2) - 4 * distance)) / 2
+      | foreach x1 x2 [eval <<FIELD>>=case(<<FIELD>> < 0, <<FIELD>> + time, <<FIELD>> > time, <<FIELD>> - time, true(), <<FIELD>>)]
+      | eval min=floor(min(x1, x2)) + 1,
+             max=ceil(max(x1, x2)) - 1,
+             result=max - min + 1
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Determine the number of ways you could beat the record in each race. What do you get if you multiply these numbers together?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats values(result) as result
+          | eval result=mvjoin(result, " * ") 
+          | math result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table race time distance min max
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>What is the sum of all of the calibration values?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table race time distance min max
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

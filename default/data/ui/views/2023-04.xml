@@ -1,0 +1,122 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 4: Scratchcards</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-04_$lookup$.csv
+      | rex field=card "Card\s*(?<id>\d+): \s*(?<winning>.+?)\s*\|\s*(?<yours>.+)"
+      | foreach winning yours [eval <<FIELD>>=split(replace(<<FIELD>>, "\s+", " "), " ")]
+      | eval matches=sum(mvmap(yours, if(in(yours, winning), "1", "0")))
+      ]]>
+    </query>
+    <done>
+      <set token="lookup2">$result.lookup$</set>
+    </done>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | eval points=if(matches > 0, pow(2, matches - 1), 0)
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <!-- TODO: Remember what `foo` is -->
+    <query>
+      <![CDATA[
+      | eval cards=mvrange(id + 1, id + matches + 1)
+      | fields + id cards
+      | mvexpand cards
+      | foreach id cards [eval fmt<<FIELD>>=printf("%03d", <<FIELD>>)]
+      | eval count_{fmtid}_{fmtcards}=1
+      | stats values(count_*) as count_* by id
+      | fields - count_*_
+      | fillnull value=0
+      | eval foo=mvrange(1, id), 
+             foo=mvmap(foo, tostring(id - foo)),
+             fmtid=printf("%03d", id),
+             num_{fmtid}=mvmap(foo, "({num_".printf("%03d", foo)."} * {count_".printf("%03d", foo)."_".printf("%03d", id)."})")
+      | stats max(count_*) as count_* values(num_*) as num_*
+      | foreach num_* [eval <<FIELD>>="1 + " . mvjoin(<<FIELD>>, " + ")]
+      | eval num_001=1
+      
+      | eval results=0
+      | foreach fieldstr={{target}} num_* [
+          | expandtokens default=0 {{target}}
+          | math outputfield={{target}} {{target}}
+          | eval results=results + {{target}}
+      ]
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Take a seat in the large pile of colorful cards. How many points are they worth in total?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(points)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | foreach winning yours [eval <<FIELD>>=mvjoin(mvsort(<<FIELD>>), ", ")]
+          | table card winning yours points
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Process all of the original and copied scratchcards until no more scratchcards are won. Including the original set of scratchcards, how many total scratchcards do you end up with?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | fields + results
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | fields + num_*
+          | transpose 
+          | rename "column" as card "row 1" as count
+          | eval card="Card ".replace(card, "^num_0*", "")
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

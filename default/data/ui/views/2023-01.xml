@@ -1,0 +1,102 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 1: Trebuchet?!</label>
+  <search>
+    <query>
+      | makeresults
+      | eval lookup=$lookup|s$
+      | eval lookup=if(lookup == "example", "example2", lookup)
+    </query>
+    <done>
+      <set token="lookup2">$result.lookup$</set>
+    </done>
+  </search>
+  <search id="part1">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-01_$lookup$.csv
+      | eval chars=split(calibration, ""),
+       chars=mvfilter(match(chars, "^\d$")),
+       digit1=mvindex(chars, 0),
+       digit2=mvindex(chars, -1),
+       result=digit1.digit2
+       ]]>
+    </query>
+  </search>
+  <search id="part2">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-01_$lookup2$.csv
+      | rex field=calibration "^.*?(?<digit1>[0-9]|one|two|three|four|five|six|seven|eight|nine|zero)"
+      | rex field=calibration "^.*(?<digit2>[0-9]|one|two|three|four|five|six|seven|eight|nine|zero).*?$"
+      | foreach digit* [lookup word_to_num.csv word AS <<FIELD>> OUTPUT num AS <<FIELD>>x | eval <<FIELD>>x=coalesce(<<FIELD>>x, <<FIELD>>)]
+      | eval result = digit1x.digit2x
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Consider your entire calibration document. What is the sum of all of the calibration values?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(result)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table calibration result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>What is the sum of all of the calibration values?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(result)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table calibration result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

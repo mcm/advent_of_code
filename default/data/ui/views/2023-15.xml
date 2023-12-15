@@ -1,0 +1,147 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 15: Lens Library</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-15_$lookup$.csv
+      | eval sequence=split(sequence, ",")
+      | mvexpand sequence
+      | streamstats count as seqid
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | eval chars=split(sequence, "")
+      | mvexpand chars
+      | lookup char_to_hex char AS chars OUTPUT hex AS value
+      | eval value=tonumber(value, 16)
+      | stats list(value) as values by seqid,sequence
+      
+      | eval result=0
+      | foreach mode=multivalue values [
+          | eval result=result + <<ITEM>>,
+                 result=result * 17,
+                 result=result % 256
+      ]
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | rex field=sequence "(?<label>\w+)"
+      | eval chars=split(label, "")
+      | mvexpand chars
+      | lookup char_to_hex char AS chars OUTPUT hex AS value
+      | eval value=tonumber(value, 16)
+      | stats list(value) as values by seqid,sequence
+      | eval result=0
+      | foreach mode=multivalue values [
+          | eval result=result + <<ITEM>>,
+                 result=result * 17,
+                 result=result % 256
+      ]
+      | fields - values
+      | eval sequence=result.";".sequence
+      | eval grp=1,
+             seqid=printf("step_%04d", seqid)
+      | xyseries grp seqid sequence
+      | fields - grp
+      | eval boxes = json_object()
+      | foreach step_* [
+          | rex field=<<FIELD>> "(?<boxid>\d+);(?<label>\w+)(?<op>[=-])(?<focal_length>\d*)"
+          | eval lens=label." ".focal_length,
+                 box=json_array_to_mv(json_extract(boxes, boxid)),
+                 matchbox=mvmap(box, if(match(box, label), box, null())),
+                 box=case(
+                     op == "-", mvmap(box, if(match(box, label), null(), box)),
+                     op == "=" AND mvcount(matchbox) > 0, mvmap(box, if(match(box, label), lens, box)),
+                     true(), mvappend(box, lens)
+                 ),
+                 box=mv_to_json_array(box),
+                 boxes=json_set(boxes, boxid, json(box))
+      ]
+      | eval boxid=json_array_to_mv(json_keys(boxes))
+      | fields + boxid boxes
+      | mvexpand boxid
+      | eval contents=json_extract(boxes, boxid)
+      | fields + boxid contents
+      | eval contents=json_array_to_mv(contents),
+             powers=mvmap(contents, replace(contents, "\D", "")),
+             slots=mvrange(0, mvcount(powers)),
+             powers=mvmap(slots, (1 + boxid) * (slots + 1) * tonumber(mvindex(powers, slots))),
+             result=sum(powers)
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Run the HASH algorithm on each step in the initialization sequence. What is the sum of the results?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(result)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | sort 0 + seqid
+          | table sequence result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>With the help of an over-enthusiastic reindeer in a hard hat, follow the initialization sequence. What is the focusing power of the resulting lens configuration?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(result)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | sort 0 + boxid
+          | table boxid contents result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

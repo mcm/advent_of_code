@@ -1,0 +1,125 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 3: Gear Ratios</label>
+  <search id="base">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-03_$lookup$.csv
+      | streamstats count
+      | eventstats max(count) as linecount
+      | rex max_match=0 field=line "\b(?<num>\d+)\b"
+      | dedup count line num
+      | mvexpand num
+      | eval m{num}="1"
+      | foreach matchstr={{num}} m* [
+          | rex field=line "^(?<yyy>.*?)\b{{num}}\b"
+          | rex field=line "^(?<zzz>.*)\b{{num}}\b"
+          | eval pre=if("<<FIELD>>" != "m" AND <<FIELD>> == "1", mvappend(yyy, zzz), pre)
+      ]
+      | mvexpand pre
+      | eval pre=len(pre)
+      | fields - m* zzz
+      | eval x=mvrange(max(0, pre - 1), min(len(line) + 1, pre + len(num) + 1)),
+             y=mvrange(max(1, count - 1), min(linecount + 1, count + 2)),
+             z=count.",".pre
+      
+      | mvexpand x | mvexpand y
+      | join type=outer x y [
+          | inputlookup 2023-03_$lookup$.csv
+          | streamstats count
+          | eval idx=mvrange(0, len(line))
+          | mvexpand idx
+          | eval sym=mvindex(split(line, ""), idx)
+          | where match(sym, "[^\d\.]")
+          | rename count as y, idx as x
+          | table x y sym
+      ]
+      | where isnotnull(sym)
+      | dedup z
+      ]]>
+    </query>
+  </search>
+  <search base="base" id="part1">
+    <query>
+      <![CDATA[
+      
+      ]]>
+    </query>
+  </search>
+  <search base="base" id="part2">
+    <query>
+      <![CDATA[
+      | search sym="*"
+      | stats count values(num) as num by x,y
+      | where count == 2
+      | eval ratio=tonumber(mvindex(num, 0)) * tonumber(mvindex(num, 1))
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Of course, the actual engine schematic is much larger. What is the sum of all of the part numbers in the engine schematic?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(num)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | rename count as row, pre as column
+          | table row column num
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>What is the sum of all of the gear ratios in your engine schematic?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(ratio)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table x y ratio
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

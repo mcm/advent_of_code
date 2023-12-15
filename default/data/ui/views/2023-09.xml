@@ -1,0 +1,120 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 9: Mirage Maintenance</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-09_$lookup$.csv
+      | eval items=split(line, " ")
+      | eval iterations=mvrange(0, mvcount(items))
+      | foreach mode=multivalue iterations [
+          eval this=if(mvcount(line) == 1, line, mvindex(line, -1)),
+               items=split(this, " "),
+               idx=mvrange(0, mvcount(items) - 1),
+               items=if(mvcount(mvdedup(items)) == 1 AND mvindex(items, 0) == "0", null(), mvmap(idx, tonumber(mvindex(items, idx + 1)) - tonumber(mvindex(items, idx)))),
+               line=if(isnotnull(items), mvappend(line, mvjoin(items, " ")), line)
+      ]
+      
+      | eval iterations=mvrange(0, mvcount(line)),
+             idx=mvmap(iterations, mvcount(line) - iterations - 1)
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | foreach itemstr={{item}} mode=multivalue iterations [
+          eval i=mvindex(idx, {{item}}),
+               prev=split(mvindex(line, i + 1), " "),
+               this=split(mvindex(line, i), " "),
+               next=if(isnull(prev), "0", tonumber(mvindex(this, -1)) + tonumber(mvindex(prev, -1))),
+               this=mvjoin(mvappend(this, next), " "),
+               line=mv_to_json_array(line),
+               line=json_set(line, "{".i."}", this),
+               line=json_array_to_mv(line)
+      ]
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | foreach itemstr={{item}} mode=multivalue iterations [
+          eval i=mvindex(idx, {{item}}),
+               prev=split(mvindex(line, i + 1), " "),
+               this=split(mvindex(line, i), " "),
+               next=if(isnull(prev), "0", tonumber(mvindex(this, 0)) - tonumber(mvindex(prev, 0))),
+               this=mvjoin(mvappend(next, this), " "),
+               line=mv_to_json_array(line),
+               line=json_set(line, "{".i."}", this),
+               line=json_array_to_mv(line)
+      ]
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Analyze your OASIS report and extrapolate the next value for each history. What is the sum of these extrapolated values?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(next)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table line next
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Analyze your OASIS report again, this time extrapolating the previous value for each history. What is the sum of these extrapolated values?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(next)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table line next
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

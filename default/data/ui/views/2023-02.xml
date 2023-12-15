@@ -1,0 +1,144 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 2: Cube Conundrum</label>
+  <search id="solution">
+    <query>
+      <![CDATA[
+      | makeresults
+      | eval solution1="| rex field=game \"^Game (?<id>\d+): (?<rounds>.+)$\"
+      | foreach fieldstr={{field}} blue red green [| rex max_match=0 field=rounds \"(?<{{field}}>\d+) {{field}}\" | eval {{field}}=max({{field}})]
+      | fields + id red green blue"
+      | eval solution2="| rex field=game \"^Game (?<id>\d+): (?<rounds>.+)$\"
+      | eval rounds=split(rounds, \"; \")
+      | mvexpand rounds
+      | fields - game
+      | eval rounds=split(rounds, \", \")
+      | mvexpand rounds
+      | rex field=rounds \"(?<count>\d+) (?<color>\w+)\"
+      | chart max(count) over id by color"
+      | eval solution=$solution$
+      ]]>
+    </query>
+    <done>
+      <set token="spl">$result.solution$</set>
+    </done>
+  </search>
+  <search id="data">
+    <query>
+      | inputlookup 2023-02_$lookup$.csv
+      $spl$
+    </query>
+  </search>
+  <!--<search id="solution1">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-02_$lookup$.csv
+      | rex field=game "^Game (?<id>\d+): (?<rounds>.+)$"
+      | foreach fieldstr={{field}} blue red green [| rex max_match=0 field=rounds "(?<{{field}}>\d+) {{field}}" | eval {{field}}=max({{field}})]
+      | fields + id red green blue
+      ]]>
+    </query>
+    <done></done>
+  </search>-->
+  <!--<search id="solution2">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-02_$lookup$.csv
+      | rex field=game "^Game (?<id>\d+): (?<rounds>.+)$"
+      | eval rounds=split(rounds, "; ")
+      | mvexpand rounds
+      | fields - game
+      | eval rounds=split(rounds, ", ")
+      | mvexpand rounds
+      | rex field=rounds "(?<count>\d+) (?<color>\w+)"
+      | chart max(count) over id by color
+       ]]>
+    </query>
+  </search>-->
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | where red <= 12 AND blue <= 14 AND green <= 13
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | eval power=1
+      | foreach fieldstr={{field}} * [eval power=if("{{field}}" IN ("id", "power"), power, power * {{field}})]
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+    <input type="radio" token="solution" searchWhenChanged="true">
+      <label></label>
+      <choice value="solution1">Solution 1: Foreach+Rex</choice>
+      <choice value="solution2">Solution 2: Dynamic Colors</choice>
+      <default>solution1</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Determine which games would have been possible if the bag had been loaded with only 12 red cubes, 13 green cubes, and 14 blue cubes. What is the sum of the IDs of those games?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(id)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table id red green blue
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>For each game, find the minimum set of cubes that must have been present. What is the sum of the power of these sets?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(power)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table id red green blue power
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

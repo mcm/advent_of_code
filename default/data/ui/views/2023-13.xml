@@ -1,0 +1,177 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2023 - Day 13: Point of Incidence</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2023-13_$lookup$.csv
+      | streamstats count(eval(isnull(pattern))) as group
+      | where isnotnull(pattern)
+      
+      | streamstats count as row by group
+      | eval row=printf("%03d", row),
+             row_{row}=pattern
+      
+      | eval pattern=split(pattern, "")
+      | mvexpand pattern
+      | eval col=printf("%03d", _mkv_child + 1),
+             col_{col}=pattern
+      
+      | stats values(row_*) as row_* list(col_*) as col_* by group
+      | foreach col_* [eval <<FIELD>>=mvjoin(<<FIELD>>, ""), cols=mvappend(cols, <<FIELD>>)] | fields - col_*
+      | foreach row_* [eval rows=mvappend(rows, <<FIELD>>)] | fields - row_*
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      ```Check for horizontal line symmetry```
+      | eval irows=mvrange(0, mvcount(rows))
+      | foreach mode=multivalue irows [
+          | eval x=<<ITEM>>,
+                 lhs=mvindex(rows, 0, x),
+                 rhs=mvindex(rows, x + 1, -1),
+                 i=min(mvcount(lhs), mvcount(rhs)),
+                 irange=mvrange(0, i),
+                 lhs=mvindex(lhs, -i, -1),
+                 rhs=mvindex(rhs, 0, i - 1),
+                 rhs=mvmap(irange, mvindex(rhs, i - irange - 1)),
+                 hsymm=if(lhs == rhs, mvappend(hsymm, tostring(x + 1)), hsymm)
+      ]
+      
+      ```Check for vertical line symmetry```
+      | eval icols=mvrange(0, mvcount(cols))
+      | foreach mode=multivalue icols [
+          | eval x=<<ITEM>>,
+                 lhs=mvindex(cols, 0, x),
+                 rhs=mvindex(cols, x + 1, -1),
+                 i=min(mvcount(lhs), mvcount(rhs)),
+                 irange=mvrange(0, i),
+                 lhs=mvindex(lhs, -i, -1),
+                 rhs=mvindex(rhs, 0, i - 1),
+                 rhs=mvmap(irange, mvindex(rhs, i - irange - 1)),
+                 vsymm=if(lhs == rhs, mvappend(vsymm, tostring(x + 1)), vsymm)
+      ]
+      | fields + group rows hsymm vsymm
+      | rename rows AS pattern
+      | sort 0 + group
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      ```Check for horizontal line symmetry```
+      | eval irows=mvrange(0, mvcount(rows))
+      | foreach mode=multivalue irows [
+          | eval x=<<ITEM>>,
+                 lhs=mvindex(rows, 0, x),
+                 rhs=mvindex(rows, x + 1, -1),
+                 i=min(mvcount(lhs), mvcount(rhs)),
+                 irange=mvrange(0, i),
+                 lhs=mvindex(lhs, -i, -1),
+                 rhs=mvindex(rhs, 0, i - 1),
+                 rhs=mvmap(irange, mvindex(rhs, i - irange - 1)),
+                 lhs=mvjoin(lhs, ""),
+                 rhs=mvjoin(rhs, ""),
+                 irange=mvrange(1, len(lhs) + 1),
+                 d=sum(mvmap(irange, if(substr(lhs, irange, 1) == substr(rhs, irange, 1), 0, 1))),
+                 hsymm=if(d == 1, mvappend(hsymm, tostring(x + 1)), hsymm)
+      ]
+      
+      ```Check for vertical line symmetry```
+      | eval icols=mvrange(0, mvcount(cols))
+      | foreach mode=multivalue icols [
+          | eval x=<<ITEM>>,
+                 lhs=mvindex(cols, 0, x),
+                 rhs=mvindex(cols, x + 1, -1),
+                 i=min(mvcount(lhs), mvcount(rhs)),
+                 irange=mvrange(0, i),
+                 lhs=mvindex(lhs, -i, -1),
+                 rhs=mvindex(rhs, 0, i - 1),
+                 rhs=mvmap(irange, mvindex(rhs, i - irange - 1)),
+                 lhs=mvjoin(lhs, ""),
+                 rhs=mvjoin(rhs, ""),
+                 irange=mvrange(1, len(lhs) + 1),
+                 d=sum(mvmap(irange, if(substr(lhs, irange, 1) == substr(rhs, irange, 1), 0, 1))),
+                 vsymm=if(d == 1, mvappend(vsymm, tostring(x + 1)), vsymm)
+      ]
+      | fields + group rows hsymm vsymm
+      | rename rows AS pattern
+      | sort 0 + group
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Find the line of reflection in each of the patterns in your notes. What number do you get after summarizing all of your notes?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(hsymm) as hsymm sum(vsymm) as vsymm
+          | fillnull value=0 hsymm vsymm
+          | eval summary=vsymm + 100 * hsymm
+          | table summary
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table pattern hsymm vsymm
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>In each pattern, fix the smudge and find the different line of reflection. What number do you get after summarizing the new reflection line in each pattern in your notes?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(hsymm) as hsymm sum(vsymm) as vsymm
+          | fillnull value=0 hsymm vsymm
+          | eval summary=vsymm + 100 * hsymm
+          | table summary
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table pattern hsymm vsymm
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>
