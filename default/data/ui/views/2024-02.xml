@@ -1,0 +1,120 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 2: Red-Nosed Reports</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2024-02_$lookup$.csv
+      | eval levels=split(reports, " ")
+      | fields + levels i
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | eval i=mvrange(1, mvcount(levels)),
+             diff=mvmap(i, tostring(tonumber(mvindex(levels, i)) - tonumber(mvindex(levels, i-1)))),
+             is_safe=case(
+                 isnotnull(mvfilter(abs(diff) < 1 OR abs(diff) > 3)), "unsafe",
+                 mvcount(mvfilter(diff < 0)) > 0 AND mvcount(mvfilter(diff > 0)) > 0, "unsafe",
+                 true(), "safe"
+             )
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | eval i=mvrange(0, mvcount(levels)),
+             reports=mv_to_json_array(levels)
+      | foreach mode=multivalue i [
+          eval x=mvindex(i, <<ITEM>>),
+               r=mvmap(i, if(i != x, mvindex(levels, i), null())),
+               reports=mvappend(reports, mv_to_json_array(r))
+      ]
+      | streamstats count as row
+      | fields + row reports
+      | mvexpand reports
+      | eval levels=json_array_to_mv(reports)
+      | eval i=mvrange(1, mvcount(levels)),
+             diff=mvmap(i, tostring(tonumber(mvindex(levels, i)) - tonumber(mvindex(levels, i-1)))),
+             is_safe=case(
+                 isnotnull(mvfilter(abs(diff) < 1 OR abs(diff) > 3)), "unsafe",
+                 mvcount(mvfilter(diff < 0)) > 0 AND mvcount(mvfilter(diff > 0)) > 0, "unsafe",
+                 true(), "safe"
+             )
+      | fields + row levels diff is_safe
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Analyze the unusual data from the engineers. How many reports are safe?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats count(eval(is_safe=="safe")) as count
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | foreach levels diff [eval <<FIELD>>=mvjoin(<<FIELD>>, " ")]
+          | table levels diff is_safe
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Update your analysis by handling situations where the Problem Dampener can remove a single level from unsafe reports. How many reports are now safe?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats values(is_safe) as is_safe by row
+          | eval is_safe=if(isnotnull(mvfilter(is_safe == "safe")), "safe", "unsafe")
+          | stats count(eval(is_safe=="safe")) as count
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | foreach levels diff [eval <<FIELD>>=mvjoin(<<FIELD>>, " ")]
+          | table row levels diff is_safe
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

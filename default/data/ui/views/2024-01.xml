@@ -1,0 +1,108 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 1: Historian Hysteria</label>
+  <search id="data">
+    <!--
+    With < 100 values, we could separate left and right and then use `stats list(left) list(right)` to get them into mv
+    fields, but with > 100 we have to get the order separately.
+    -->
+    <query>
+      <![CDATA[
+      | inputlookup 2024-01_$lookup$.csv
+      | rex field=list "^(?<left>\d+)\s+(?<right>\d+)$"
+      | fields - list
+      | sort 0 + left | streamstats count as left_idx
+      | sort 0 + right | streamstats count as right_idx
+      | eval data=mvappend(data, json_object("left", left, "idx", left_idx), json_object("right", right, "idx", right_idx))
+      | fields + data
+      | mvexpand data
+      | spath input=data
+      | fields - data
+       ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | stats values(left) as left values(right) as right by idx
+      | fields - idx
+      | eval dist=abs(left-right)
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | eval right=if(isnull(right), left, right)
+      | eventstats count(eval(isnull(left))) as count by right
+      | where isnotnull(left)
+      | eval similarity=count * left
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Your actual left and right lists contain many location IDs. What is the total distance between your lists?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(dist)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table left right dist
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Once again consider your left and right lists. What is their similarity score?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(similarity)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table left countsimilarity
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>

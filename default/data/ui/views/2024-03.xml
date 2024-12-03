@@ -1,0 +1,100 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 3: Mull It Over</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2024-03_$lookup$.csv
+      | rex field=memory max_match=0 "(?<instruction>mul\(\d+,\d+\)|do\(\)|don't\(\))"
+      | fields + instruction
+      | mvexpand instruction
+      | rex field=instruction "mul\((?<a>\d+),(?<b>\d+)\)"
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | eval result=a * b
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | eval do=case(
+          instruction=="don't()", 0,
+          instruction=="do()", 1
+      )
+      | streamstats last(do) as do
+      | eval do=coalesce(do, 1)
+      | eval result=if(do==1, a * b, null())
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example2">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example2</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Scan the corrupted memory for uncorrupted mul instructions. What do you get if you add up all of the results of the multiplications?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(result)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table instruction result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Handle the new instructions; what do you get if you add up all of the results of just the enabled multiplications?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats sum(result)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table instruction result
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>
