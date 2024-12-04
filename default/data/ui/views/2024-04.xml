@@ -1,0 +1,240 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 4: Ceres Search</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2024-04_$lookup$.csv
+      | streamstats current=f count as y
+      | eval y=printf("%03d", y),
+             data=json_object(y, wordsearch)
+      | stats values(data) as data
+      | eval data2=json_object(), i=mvrange(0, mvcount(data))
+      | foreach mode=multivalue i [
+          eval row=mvindex(data, <<ITEM>>),
+               x=json_array_to_mv(json_keys(row)),
+               row=split(json_extract(row, x), ""),
+               data2=json_set(data2, x, row)
+      ]
+      | fields + data2
+      | eval keys=json_array_to_mv(json_keys(data2)),
+             data=mvmap(keys, mvjoin(json_array_to_mv(json_extract(data2, keys)), ""))
+      | fields + data
+      
+      | eval yrange=mvrange(0, mvcount(data)),
+             xrange=mvrange(0, tonumber(max(mvmap(yrange, len(mvindex(data, yrange)))))),
+             count=0
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      ```Check for XMAS or SAMX in rows```       
+      | foreach mode=multivalue yrange [
+          eval x=mvindex(yrange, <<ITEM>>),
+               rows=mvappend(rows, mvindex(data, x))
+      ]
+      | fields + data xrange yrange rows
+      
+      ```Check for XMAS or SAMX in columns```  
+      | foreach mode=multivalue xrange [
+          eval x=mvindex(xrange, <<ITEM>>),
+               cols=mvappend(cols, mvjoin(mvmap(yrange, `get_char_at(x, yrange)`), ""))
+      ]
+      | fields + data xrange yrange rows cols
+      
+      ```Check for XMAS or SAMX in left-to-right diagonals starting in the top row```
+      | foreach mode=multivalue xrange [
+          eval x=mvindex(xrange, <<ITEM>>),
+               x=if(x == 0, null(), x),
+               diagyrange=mvindex(yrange, 0, max(yrange) - x + 1),
+               diagonals=mvappend(diagonals, mvjoin(mvmap(diagyrange, `get_char_at((x + diagyrange), diagyrange)`), ""))
+      ]
+      | fields + data xrange yrange rows cols diagonals
+      
+      ```Check for XMAS or SAMX in right-to-left diagonals starting in the bottom row```
+      | foreach mode=multivalue xrange [
+          eval x=mvindex(xrange, <<ITEM>>),
+               x=if(x == 0, null(), x),
+               diagyrange=mvindex(yrange, 0, max(yrange) - x + 1),
+               diagonals=mvappend(diagonals, mvjoin(mvmap(diagyrange, `get_char_at((x + diagyrange), (max(yrange) - diagyrange))`), ""))
+      ]
+      | fields + data xrange yrange rows cols diagonals
+      
+      ```Check for XMAS or SAMX in left-to-right diagonals starting in the left column```
+      | foreach mode=multivalue yrange [
+          eval y=mvindex(yrange, <<ITEM>>),
+               diagxrange=mvindex(xrange, 0, max(xrange) - y + 1),
+               diagonals=mvappend(diagonals, mvjoin(mvmap(diagxrange, `get_char_at(diagxrange, (y + diagxrange))`), ""))
+      ]
+      | fields + data xrange yrange rows cols diagonals
+      
+      ```Check for XMAS or SAMX in right-to-left diagonals starting in the left column```
+      | foreach mode=multivalue yrange [
+          eval y=mvindex(yrange, <<ITEM>>),
+               diagxrange=mvindex(xrange, 0, y),
+               diagonals=mvappend(diagonals, mvjoin(mvmap(diagxrange, `get_char_at(diagxrange, (y - diagxrange))`), ""))
+      ]
+      | fields + data xrange yrange rows cols diagonals
+      | foreach rows cols diagonals [eval lines=mvappend(lines, mvmap(<<FIELD>>, "<<FIELD>>,".<<FIELD>>))]
+      | fields + lines
+      | mvexpand lines
+      | rex field=lines "^(?<type>\w+)s,(?<line>.+)$"
+      | fields + type line
+      | rex field=line max_match=0 "(?<m1>XMAS)"
+      | rex field=line max_match=0 "(?<m2>SAMX)"
+      | eval count=0
+      | foreach m1 m2 [eval count=if(isnotnull(<<FIELD>>), count + mvcount(<<FIELD>>), count)]
+      | fields + type line count
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      ```Check for MAS in left-to-right diagonals starting in the top row```
+      | foreach mode=multivalue xrange [
+          eval x=mvindex(xrange, <<ITEM>>),
+               x=if(x == 0, null(), x),
+               diagyrange=mvindex(yrange, 0, max(yrange) - x + 1),
+               line=mvjoin(mvmap(diagyrange, `get_char_at((x + diagyrange), diagyrange)`), ""),
+               irange=mvrange(1, len(line) - 1),
+               mas=mvappend(mas, mvmap(irange, if(match(substr(line, irange, 3), "MAS|SAM"), json_object("x", x + irange, "y", irange), null())))
+      ]
+      | fields + data xrange yrange mas
+      
+      ```Check for MAS in left-to-right diagonals starting in the left column```
+      | foreach mode=multivalue yrange [
+          eval y=mvindex(yrange, <<ITEM>>),
+               diagxrange=mvindex(xrange, 0, max(xrange) - y + 1),
+               line=mvjoin(mvmap(diagxrange, `get_char_at(diagxrange, (y + diagxrange))`), ""),
+               irange=mvrange(1, len(line) - 1),
+               mas=mvappend(mas, mvmap(irange, if(match(substr(line, irange, 3), "MAS|SAM"), json_object("x", irange, "y", y + irange), null())))
+      ]
+      | fields + data xrange yrange mas
+      
+      ```Check for MAS in right-to-left diagonals starting in the bottom row```
+      | foreach mode=multivalue xrange [
+          eval x=mvindex(xrange, <<ITEM>>),
+               x=if(x == 0, null(), x),
+               diagyrange=mvindex(yrange, 0, max(yrange) - x + 1),
+               line=mvjoin(mvmap(diagyrange, `get_char_at((x + diagyrange), (max(yrange) - diagyrange))`), ""),
+               irange=mvrange(1, len(line) - 1),
+               mas=mvappend(mas, mvmap(irange, if(match(substr(line, irange, 3), "MAS|SAM"), json_object("x", x + irange, "y", max(yrange) - irange), null())))
+      ]
+      | fields + data xrange yrange mas
+      
+      ```Check for MAS in right-to-left diagonals starting in the left column```
+      | foreach mode=multivalue yrange [
+          eval y=mvindex(yrange, <<ITEM>>),
+               diagxrange=mvindex(xrange, 0, y),
+               line=mvjoin(mvmap(diagxrange, `get_char_at(diagxrange, (y - diagxrange))`), ""),
+               irange=mvrange(1, len(line) - 1),
+               mas=mvappend(mas, mvmap(irange, if(match(substr(line, irange, 3), "MAS|SAM"), json_object("x", irange, "y", y - irange), null())))
+      ]
+      | fields + data xrange yrange mas
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Take a look at the little Elf's word search. How many times does XMAS appear?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats sum(count)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table type line count
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Flip the word search from the instructions back over to the word search side and try again. How many times does an X-MAS appear?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats count by mas
+          | search count > 1
+          | stats count
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <!--<table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+      
+          | eval data2=json_object(),
+                 irange=mvrange(0, mvcount(mas))
+                 
+          | foreach mode=multivalue yrange [
+              eval y=mvindex(yrange, <<ITEM>>),
+                   data2=json_set(data2, y, mv_to_json_array(mvmap(xrange, ".")))
+          ]
+                 
+          | foreach mode=multivalue irange [
+              eval i=mvindex(irange, <<ITEM>>),
+                   imas=mvindex(mas, i),
+                   imas=if(mvcount(mvmap(mas, if(mas == imas, mas, null()))) > 1, imas, null()),
+                   cx=json_extract(imas, "x"),
+                   cy=json_extract(imas, "y"),
+                   
+                   char=`get_char_at(cx, cy)`,
+                   data2=json_set(data2, cy."{".cx."}", char),
+                   char=`get_char_at(cx - 1, cy - 1)`,
+                   data2=json_set(data2, (cy - 1)."{".(cx - 1)."}", char),
+                   char=`get_char_at(cx - 1, cy + 1)`,
+                   data2=json_set(data2, (cy + 1)."{".(cx - 1)."}", char),
+                   char=`get_char_at(cx + 1, cy - 1)`,
+                   data2=json_set(data2, (cy - 1)."{".(cx + 1)."}", char),
+                   char=`get_char_at(cx + 1, cy + 1)`,
+                   data2=json_set(data2, (cy + 1)."{".(cx + 1)."}", char)
+          ]
+          
+          | foreach mode=multivalue yrange [
+              eval y=mvindex(yrange, <<ITEM>>),
+                   line=mvjoin(json_array_to_mv(json_extract(data2, y)), ""),
+                   output=mvappend(output, line)
+          ]
+          | table output
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>-->
+    </panel>
+  </row>
+</form>
