@@ -1,0 +1,126 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 5: Print Queue</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2024-05_$lookup$.csv where pages!=""
+      | eval rules=if(match(pages, "\d+\|\d+"), pages, rules),
+             pages=if(isnotnull(rules), null(), pages)
+      | eventstats values(rules) as rules
+      | where isnotnull(pages)
+      | streamstats count as group
+      | eval irange=mvrange(0, mvcount(rules)),
+             orig=pages,
+             pages=split(pages, ","),
+             ipages=mvrange(0, mvcount(pages))
+      | foreach mode=multivalue irange [
+          eval i=mvindex(irange, <<ITEM>>),
+               rule=split(mvindex(rules, i), "|"),
+               first=mvindex(rule, 0), second=mvindex(rule, 1),
+               ifirst=mvfind(pages, "^".first."$$"),
+               isecond=mvfind(pages, "^".second."$$"),
+               outoforder=if(isecond < ifirst, 1, 0),
+               pages=case(
+                   outoforder == 0, pages,
+                   isecond == 0, mvappend(first, mvmap(pages, if(pages == first, null(), pages))),
+                   isecond == 1, mvappend(mvindex(pages, 0), first, mvmap(ipages, if(ipages == 0 OR ipages == ifirst, null(), mvindex(pages, ipages)))),
+                   true(), mvappend(mvindex(pages, 0, isecond - 1), first, mvmap(ipages, if(ipages < isecond OR ipages == ifirst, null(), mvindex(pages, ipages))))
+               )
+      ]
+      | eval outoforder=if(mvjoin(pages, ",") == orig, 0, 1)
+      | eval i=(mvcount(pages) - 1) / 2,
+             middle=mvindex(pages, i)
+      | fields + pages orig outoforder middle
+      ]]>
+    </query>
+  </search>
+  <!--<search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | where outoforder == 0
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | where outoforder == 1
+      ]]>
+    </query>
+  </search>-->
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Determine which updates are already in the correct order. What do you get if you add up the middle page number from those correctly-ordered updates?</title>
+      <single>
+        <search base="data">
+          <query>
+          <![CDATA[
+          | where outoforder == 0
+          | stats sum(middle)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="data">
+          <query>
+          <![CDATA[
+          | eval middle=if(outoforder == 1, null(), middle),
+                 pages=mvjoin(pages, ",")
+          | table orig pages outoforder middle
+          | replace 0 with "No" 1 with "Yes" in outoforder
+          | rename orig as "Expected Order", pages as "Actual Order", outoforder as "Out of Order?", middle as "Middle Page"
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Find the updates which are not in the correct order. What do you get if you add up the middle page numbers after correctly ordering just those updates?</title>
+      <single>
+        <search base="data">
+          <query>
+          <![CDATA[
+          | where outoforder == 1
+          | stats sum(middle)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="data">
+          <query>
+          <![CDATA[
+          | eval middle=if(outoforder == 0, null(), middle),
+                 pages=mvjoin(pages, ",")
+          | replace 0 with "No" 1 with "Yes" in outoforder
+          | rename orig as "Expected Order", pages as "Actual Order", outoforder as "Out of Order?", middle as "Middle Page"
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>
