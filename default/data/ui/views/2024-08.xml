@@ -1,0 +1,118 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 8: Resonant Collinearity</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2024-08_$lookup$.csv
+      | streamstats current=f count as y
+      | eventstats max(y) as max_y
+      | eval irange=mvrange(0, len(frequency)), max_x=max(irange)
+      | foreach mode=multivalue irange [
+          eval x=mvindex(irange, <<ITEM>>),
+               i=x + 1,
+               F=substr(frequency, i, 1),
+               antenna=if(F != ".", mvappend(antenna, F.":".x.",".y), antenna)
+      ]
+      | where isnotnull(antenna)
+      | fields + max_x max_y antenna
+      | mvexpand antenna
+      | eval F=substr(antenna, 0, 1),
+             antenna=substr(antenna, 3)
+      | stats values(*) as * by F
+      | combinations antenna
+      | fields - antenna
+      | mvexpand result
+      | rex field=result "^(?<X1>\d+),(?<Y1>\d+);(?<X2>\d+),(?<Y2>\d+)$"
+      | eval dx=X1 - X2,
+             dy=Y1 - Y2
+      | eval x=mvrange(0, max_x + 1)
+      | fields + F max_x max_y x Y1 X1 Y2 X2 dy dx
+      | mvexpand x
+      | eval y = ((dy * x) - (dy * X1)) / dx + Y1
+      | where y >= 0 AND y <= max_y AND match(y, "^\d+$")
+      | fields + x X1 X2 y Y1 Y2 dx dy
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | where (x == X1 + dx AND y == Y1 + dy) OR (x == X2 - dx AND y == Y2 - dy)
+      | stats count by x,y
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query>
+      <![CDATA[
+      | stats count by x,y
+      ]]>
+    </query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Calculate the impact of the signal. How many unique locations within the bounds of the map contain an antinode?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats count
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | table x y
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Find the updates which are not in the correct order. What do you get if you add up the middle page numbers after correctly ordering just those updates?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats count
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | table x y
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>
