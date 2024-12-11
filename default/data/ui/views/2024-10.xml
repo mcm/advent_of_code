@@ -1,0 +1,128 @@
+<form version="1.1" theme="dark">
+  <label>AoC 2024 - Day 10: Hoof It</label>
+  <search id="data">
+    <query>
+      <![CDATA[
+      | inputlookup 2024-10_$lookup$.csv
+      | streamstats current=f count as y
+      | eval heightmap=split(heightmap, "")
+      | mvexpand heightmap
+      | streamstats current=f count as x by y
+      | streamstats current=f window=1 global=f first(heightmap) as hm_up by x
+      | streamstats current=f window=1 global=f first(heightmap) as hm_left by y
+      | sort 0 - y
+      | streamstats current=f window=1 global=f first(heightmap) as hm_down by x
+      | sort 0 - x
+      | streamstats current=f window=1 global=f first(heightmap) as hm_right by y
+      | sort 0 + y x
+      | foreach hm_* [
+          eval <<FIELD>>=if(isnull(<<FIELD>>) OR <<FIELD>> != heightmap + 1, null(), <<FIELD>>),
+               neighbors=case(
+                   isnull(<<FIELD>>), neighbors,
+                   "<<MATCHSTR>>" == "down", mvappend(neighbors, x.",".(y + 1)),
+                   "<<MATCHSTR>>" == "up", mvappend(neighbors, x.",".(y - 1)),
+                   "<<MATCHSTR>>" == "left", mvappend(neighbors, (x - 1).",".y),
+                   "<<MATCHSTR>>" == "right", mvappend(neighbors, (x + 1).",".y)
+               )
+      ]
+      | eval p=x.",".y,
+             start=if(heightmap == 0, p, null()),
+             end=if(heightmap == 9, p, null())
+      | fields + p neighbors start end
+      | mvexpand neighbors
+      | eval edges=if(neighbors != "", json_array(p, neighbors), null())
+      | stats values(edges) as edges values(start) as start values(end) as end
+      | graph init
+      | graph add_edges edges
+      | stats values(start) as start values(end) as end
+      | foreach mode=multivalue start [
+          eval pairs=mvappend(pairs, mvmap(end, json_array(<<ITEM>>, end)))
+      ]
+      | fields + pairs
+      | graph load
+      | graph get_paths pairs
+      | fields + path
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part1">
+    <query>
+      <![CDATA[
+      | eval path=mvdedup(mvmap(path, replace(path, "^(\d+\,\d+);.+?;(\d+\,\d+)$", "\1;\2")))
+      ]]>
+    </query>
+  </search>
+  <search base="data" id="part2">
+    <query></query>
+  </search>
+  <fieldset submitButton="false">
+    <input type="radio" token="lookup" searchWhenChanged="true">
+      <label></label>
+      <choice value="example2">Use Example Data</choice>
+      <choice value="input">Use Real Data</choice>
+      <default>example2</default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>The reindeer gleefully carries over a protractor and adds it to the pile. What is the sum of the scores of all trailheads on your topographic map?</title>
+      <single>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | stats dc(path)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part1">
+          <query>
+          <![CDATA[
+          | mvexpand path
+          | eval path=replace(path, ";", " -> ")
+          | table path
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>You're not sure how, but the reindeer seems to have crafted some tiny flags out of toothpicks and bits of paper and is using them to mark trailheads on your topographic map. What is the sum of the ratings of all trailheads?</title>
+      <single>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | stats dc(path)
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="rangeColors">["0x53a051","0x0877a6","0xf8be34","0xf1813f","0xdc4e41"]</option>
+        <option name="refresh.display">progressbar</option>
+        <option name="useThousandSeparators">0</option>
+      </single>
+      <table>
+        <search base="part2">
+          <query>
+          <![CDATA[
+          | mvexpand path
+          | eval path=replace(path, ";", " -> ")
+          | table path
+          ]]>
+          </query>
+        </search>
+        <option name="drilldown">none</option>
+        <option name="refresh.display">progressbar</option>
+      </table>
+    </panel>
+  </row>
+</form>
